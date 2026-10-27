@@ -1,87 +1,89 @@
-# Task Context & Prompt for Refactoring Java Lab 1 to Lab 2 (Variant 9: Event & Conference Management)
+# Task Context & Prompt for Java Lab 3 Implementation (Variant 9: Event & Conference Management)
 
 ## 1. Task Context & Environment
-- **Branch Context:** You are currently checked out on the `lab2` branch in an existing Java project built in Lab 1.
-- **Goal:** Refactor and update the codebase to satisfy all Lab 2 requirements (Records, Enums, and Switch Expressions) based on **Variant 9: Event & Conference Management**.
-- **Namespace:** `ua.conference`
+- **Branch Context:** You are currently checked out on the `lab3` branch in an existing Java project built on top of Lab 1 and Lab 2.
+- **Goal:** Implement File I/O, CSV Parsing, Checked Exceptions, Logging (SLF4J/Logback), and JUnit 5 tests according to **Lab 3 requirements** for **Variant 9: Event & Conference Management**.
+- **Package Namespace:** `ua.conference`
 
 ---
 
-## 2. Refactoring Rules & Requirements
+## 2. Technical Requirements & Guidelines
 
-### 1. Enums (`ua.conference.model`)
-- Replace String-based fixed choice fields (`category`, `ticketType`, etc.) with `enum` types.
-- Ensure all enum constants match the domain specification:
-  - **`Category`**: `TECH`, `SCIENCE`, `BUSINESS`, `ART`
-  - **`TicketType`**: `STANDARD`, `VIP`, `SPEAKER`, `PRESS`
-- **At least one enum MUST have custom fields and a constructor.**
-  - Create a custom property on `TicketType` (e.g., `private final double discountFactor` or `priceMultiplier`) with a constructor and getter method.
+### 1. Custom Checked Exception (`ua.conference.exception`)
+- Create a checked exception class `InvalidDataException extends Exception`.
+- Must include **two constructors**:
+  1. `public InvalidDataException(String message)`
+  2. `public InvalidDataException(String message, Throwable cause)`
+- **Note:** Do NOT modify compact constructors of records from Lab 2 (they continue throwing unchecked `IllegalArgumentException`).
 
-### 2. Records & Class Hierarchy Changes
-- **Remove `BaseEntity`:** Since Java `record`s cannot extend classes, remove inheritance from `BaseEntity`. Manage `createdAt` or standard identifiers within the records directly if needed.
-- **Convert Immutable Entities to `record`:**
-  - Entities whose fields do NOT change after instantiation (no `✎` mark) MUST be converted to `record`.
-  - Place validation checks inside **compact constructors** (e.g., `public Participant { ValidationHelper.requireNonEmpty(fullName, "fullName"); ... }`).
-- **Keep Mutable Classes as Standard Classes:**
-  - Entities with fields marked as editable (`✎`) must remain standard `class`es (e.g., `Event` or `EventRegistration` depending on mutable status).
-- **Clean up Records:**
-  - Explicitly **remove** all boilerplate getters, `equals()`, `hashCode()`, and `toString()` methods from records—let the Java compiler generate them automatically.
+### 2. Sample Data File (`data/venues.csv` or `data/participants.csv`)
+- Create a CSV file in the `data/` directory at the repository root containing data for an independent entity from Variant 9 (e.g., `Venue` or `Participant`).
+- File format:
+  - Header line present (e.g., `venueCode,name,capacity`).
+  - Delimiter: comma `,`, no quotes around values, standard UTF-8 encoding.
+  - Must contain **at least 3 invalid lines** with different parsing/validation errors (e.g., non-numeric capacity, blank code/name, invalid capacity <= 0).
 
-### 3. Switch Expressions (`ua.conference.util.ConferenceUtils`)
-Implement **two** modern Java 14+ `switch` expressions (using arrow `->` syntax, returning values):
-1. **Exhaustive Switch over Enum:** A `switch` expression operating on your custom Enum (`Category` or `TicketType`) without a `default` clause, listing all enum constants explicitly.
-2. **Behavioral Switch:** A `switch` expression determining business rules or domain choices (e.g., pricing multipliers, user status messages, or permission logic).
+### 3. File Reader / Loader (`ua.conference.loader`)
+- Create a loader utility class (e.g., `VenueLoader` or `ParticipantLoader`).
+- Functionality:
+  - Read lines using `BufferedReader` or `Files.lines`.
+  - Use `try-with-resources` to guarantee resource closure.
+  - Parse each line into a domain object (`Venue` / `Participant`).
+  - On line-level validation failure or parsing error, catch the internal exception (`IllegalArgumentException`, `NumberFormatException`, etc.) and throw a custom `InvalidDataException` containing the **1-based line number** and the original `cause`.
+  - **Error Recovery:** Catch `InvalidDataException` inside the loader loop, log a `WARN` message, **skip the invalid line**, and continue reading the rest of the file.
+  - **Missing File Handling:** Handle `IOException` or `NoSuchFileException` gracefully (log an `ERROR` message) without throwing an uncaught exception or stopping application execution.
+  - Demonstrate proper usage of `finally` and `multi-catch` blocks where appropriate.
 
-### 4. Language & Documentation Standards
-- **English Only:** All code comments, Javadoc, field names, and exception messages **must** be written in English.
-- **Ukrainian for UI/Console Output:** User-facing strings in `Main.java` (system outputs) must be in Ukrainian.
+### 4. Logging Configuration (`SLF4J` + `Logback`)
+- Update `build.gradle` dependencies:
+  ```groovy
+  dependencies {
+      implementation 'org.slf4j:slf4j-api:2.0.9'
+      runtimeOnly 'ch.qos.logback:logback-classic:1.4.11'
+  }
+Use 3 distinct log levels appropriately:
 
-### 5. Application Entry Point (`Main.java`)
-Update `Main.java` to demonstrate all newly refactored features:
-1. Instantiation of `record` objects and access to their components.
-2. `enum` functionality: `values()`, access to custom enum fields/methods, and `valueOf()` handling invalid string input in a `try-catch` block.
-3. Execution and printed results of **both** new `switch` expressions.
-4. Attempting to create a `record` with invalid data to trigger `IllegalArgumentException` from its compact constructor.
-5. Equality demonstration: comparing two identical `record` instances using generated `equals()` and `hashCode()`.
-6. Record output demonstrating generated `toString()`.
+INFO: Successful file reading completion, total valid loaded records count.
 
----
+WARN: Skipping an invalid CSV line (include line number and error detail using parametrized logs {}).
 
-## 3. Variant 9 Entity Profiles & Domain Data
+ERROR: Attempting to read a non-existent file or critical file access issues.
 
-### `Participant` (Record candidate)
-- `email` (String, key, lowercased, non-empty)
-- `fullName` (String, non-empty)
-- `organization` (String, non-empty)
+Log Formatting: Use SLF4J placeholders (e.g., log.info("Loaded {} venues", list.size());) instead of string concatenation. Pass standard exceptions as the last parameter to preserve stack traces.
 
-### `Venue` (Record candidate)
-- `venueCode` (String, key, non-empty, e.g., "HALL-A")
-- `name` (String, non-empty)
-- `capacity` (int, strictly > 0)
+### 5. Unit Testing with JUnit 5 (src/test/java)
+Write at least 6 independent JUnit 5 test cases (using @Test and @DisplayName in English):
 
-### `Event`
-- `eventCode` (String, key, non-empty)
-- `title` (String, non-empty) ✎
-- `venue` (Venue, non-null)
-- `category` (Category Enum: `TECH`, `SCIENCE`, `BUSINESS`, `ART`) ✎
-- `startDate` (LocalDate, non-null) ✎
-- `endDate` (LocalDate, non-null, >= startDate) ✎
+Valid Object Creation: Test successful instantiation of records/classes.
 
-### `EventRegistration`
-- `event` (Event, non-null)
-- `participant` (Participant, non-null)
-- `ticketType` (TicketType Enum: `STANDARD`, `VIP`, `SPEAKER`, `PRESS`)
-- `registrationDate` (LocalDate, non-null, <= event.getStartDate())
+Invalid Data Handling: Verify InvalidDataException is thrown with correct line numbers and messages during line parsing.
 
-### Domain Utility Methods (`ConferenceUtils`)
-- `eventDays(Event event)`: Returns the total duration of the event in days.
-- `daysBeforeEvent(EventRegistration reg)`: Calculates days between registration and event start date.
+Calculated Methods: Test domain utility functions (e.g., eventDays(Event), daysBeforeEvent(EventRegistration)).
 
----
+Validation Rules: Test edge cases in record compact constructors or setter methods.
+Note: Unit tests must NOT depend on external physical files in data/ (use string streams or mock data where needed).
+
+### 6. Application Entry Point (Main.java)
+Update Main.java to demonstrate all required Lab 3 scenarios:
+
+Loading from the CSV file containing both valid and invalid lines.
+
+Attempting to load from a non-existent file path (demonstrating graceful ERROR handling).
+
+Triggering and catching a setter validation error on a mutable class (e.g., Event).
+
+Triggering and demonstrating log output across all 3 levels (INFO, WARN, ERROR).
+
+## 3. Language & Formatting Rules
+English Only: Javadoc, code comments, test method names, @DisplayName annotations, and exception messages must be in English.
+
+Ukrainian for Console Output: Console outputs in Main.java intended for the user must be in Ukrainian.
 
 ## 4. Verification Step
-Make sure all existing and updated code compiles cleanly without build errors:
-- Execute `./gradlew build`
-- Execute `./gradlew run`
+Ensure everything builds and passes tests smoothly:
 
-Please apply all necessary modifications to the existing files on the `lab2` branch.
+Execute ./gradlew test
+
+Execute ./gradlew run
+
+Please apply all required code additions and modifications directly to the project.
